@@ -429,7 +429,83 @@ typedef struct drm_i915_irq_wait {
 #define I915_PARAM_HAS_GPU_RESET     35
 #define I915_PARAM_HAS_RESOURCE_STREAMER 36
 #define I915_PARAM_HAS_EXEC_SOFTPIN     37
-#define I915_PARAM_CS_TIMESTAMP_FREQUENCY  51
+#define I915_PARAM_HAS_POOLED_EU     38
+#define I915_PARAM_MIN_EU_IN_POOL     39
+#define I915_PARAM_MMAP_GTT_VERSION     40
+
+/*
+ * Query whether DRM_I915_GEM_EXECBUFFER2 supports user defined execution
+ * priorities and the driver will attempt to execute batches in priority order.
+ * The param returns a capability bitmask, nonzero implies that the scheduler
+ * is enabled, with different features present according to the mask.
+ *
+ * The initial priority for each batch is supplied by the context and is
+ * controlled via I915_CONTEXT_PARAM_PRIORITY.
+ */
+#define I915_PARAM_HAS_SCHEDULER     41
+#define   I915_SCHEDULER_CAP_ENABLED    (1ul << 0)
+#define   I915_SCHEDULER_CAP_PRIORITY    (1ul << 1)
+#define   I915_SCHEDULER_CAP_PREEMPTION    (1ul << 2)
+
+#define I915_PARAM_HUC_STATUS         42
+
+/* Query whether DRM_I915_GEM_EXECBUFFER2 supports the ability to opt-out of
+ * synchronisation with implicit fencing on individual objects.
+ * See EXEC_OBJECT_ASYNC.
+ */
+#define I915_PARAM_HAS_EXEC_ASYNC     43
+
+/* Query whether DRM_I915_GEM_EXECBUFFER2 supports explicit fence support -
+ * both being able to pass in a sync_file fd to wait upon before executing,
+ * and being able to return a new sync_file fd that is signaled when the
+ * current request is complete. See I915_EXEC_FENCE_IN and I915_EXEC_FENCE_OUT.
+ */
+#define I915_PARAM_HAS_EXEC_FENCE     44
+
+/* Query whether DRM_I915_GEM_EXECBUFFER2 supports the ability to capture
+ * user specified bufffers for post-mortem debugging of GPU hangs. See
+ * EXEC_OBJECT_CAPTURE.
+ */
+#define I915_PARAM_HAS_EXEC_CAPTURE     45
+
+#define I915_PARAM_SLICE_MASK         46
+
+/* Assuming it's uniform for each slice, this queries the mask of subslices
+ * per-slice for this system.
+ */
+#define I915_PARAM_SUBSLICE_MASK     47
+
+/*
+ * Query whether DRM_I915_GEM_EXECBUFFER2 supports supplying the batch buffer
+ * as the first execobject as opposed to the last. See I915_EXEC_BATCH_FIRST.
+ */
+#define I915_PARAM_HAS_EXEC_BATCH_FIRST     48
+
+/* Query whether DRM_I915_GEM_EXECBUFFER2 supports supplying an array of
+ * drm_i915_gem_exec_fence structures.  See I915_EXEC_FENCE_ARRAY.
+ */
+#define I915_PARAM_HAS_EXEC_FENCE_ARRAY  49
+
+/*
+ * Query whether every context (both per-file default and user created) is
+ * isolated (insofar as HW supports). If this parameter is not true, then
+ * freshly created contexts may inherit values from an existing context,
+ * rather than default HW values. If true, it also ensures (insofar as HW
+ * supports) that all state set by this context will not leak to any other
+ * context.
+ *
+ * As not every engine across every gen support contexts, the returned
+ * value reports the support of context isolation for individual engines by
+ * returning a bitmask of each engine class set to true if that class supports
+ * isolation.
+ */
+#define I915_PARAM_HAS_CONTEXT_ISOLATION 50
+
+/* Frequency of the command streamer timestamps given by the *_TIMESTAMP
+ * registers. This used to be fixed per platform but from CNL onwards, this
+ * might vary depending on the parts.
+ */
+#define I915_PARAM_CS_TIMESTAMP_FREQUENCY 51
 
 typedef struct drm_i915_getparam {
     __s32 param;
@@ -1343,18 +1419,46 @@ struct drm_i915_gem_context_param {
 #define I915_CONTEXT_PARAM_BAN_PERIOD    0x1
 #define I915_CONTEXT_PARAM_NO_ZEROMAP    0x2
 #define I915_CONTEXT_PARAM_GTT_SIZE    0x3
-#define I915_CONTEXT_PARAM_SSEU     0x7
+#define I915_CONTEXT_PARAM_SSEU     0x8
     __u64 value;
 };
 
-union drm_i915_gem_context_param_sseu {
-    struct {
-        __u8 slice_mask;
-        __u8 subslice_mask;
-        __u8 min_eu_per_subslice;
-        __u8 max_eu_per_subslice;
-    } packed;
-    __u64 value;
+struct drm_i915_gem_context_param_sseu {
+    /*
+     * Engine class & instance to be configured or queried.
+     */
+    __u16 engine_class;
+    __u16 instance;
+
+    /*
+     * Unused for now. Must be cleared to zero.
+     */
+    __u32 rsvd1;
+
+    /*
+     * Mask of slices to enable for the context. Valid values are a subset
+     * of the bitmask value returned for I915_PARAM_SLICE_MASK.
+     */
+    __u64 slice_mask;
+
+    /*
+     * Mask of subslices to enable for the context. Valid values are a
+     * subset of the bitmask value return by I915_PARAM_SUBSLICE_MASK.
+     */
+    __u64 subslice_mask;
+
+    /*
+     * Minimum/Maximum number of EUs to enable per subslice for the
+     * context. min_eus_per_subslice must be inferior or equal to
+     * max_eus_per_subslice.
+     */
+    __u16 min_eus_per_subslice;
+    __u16 max_eus_per_subslice;
+
+    /*
+     * Unused for now. Must be cleared to zero.
+     */
+    __u32 rsvd2;
 };
 
 typedef struct drm_i915_ring_load_info
