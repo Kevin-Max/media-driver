@@ -387,8 +387,8 @@ int mos_get_subslice_total(int fd, unsigned int *subslice_total);
 int mos_get_eu_total(int fd, unsigned int *eu_total);
 
 struct class_instance {
-	uint32_t engine_class;
-	uint32_t instance;
+    uint32_t engine_class;
+    uint32_t instance;
 };
 int mos_query_engines(int fd,
                       __u32 engine_class,

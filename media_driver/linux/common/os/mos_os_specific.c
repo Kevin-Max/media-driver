@@ -1172,6 +1172,7 @@ MOS_STATUS Linux_InitContext(
             MOS_OS_ASSERTMESSAGE("Failed to create drm intel context");
             return MOS_STATUS_UNKNOWN;
        }
+       pContext->ctx_caps = I915_VCS_CLASS_CAPABILITY_INVALID;
     }
 
     pContext->intel_context->pOsContext = pContext;
@@ -3788,6 +3789,12 @@ MOS_STATUS Mos_Specific_CreateGpuContext(
             MOS_OS_CHK_STATUS_RETURN(gpuContextSpecific->Init(gpuContextMgr->GetOsContext()));
 
             pOsContextSpecific->SetGpuContextHandle(mosGpuCxt, gpuContextSpecific->GetGpuContextHandle());
+
+            if (typeid(*createOption) == typeid(MOS_GPUCTX_CREATOPTIONS_ENHANCED))
+            {
+                PMOS_GPUCTX_CREATOPTIONS_ENHANCED createOptionEnhanced = static_cast<PMOS_GPUCTX_CREATOPTIONS_ENHANCED>(createOption);
+                gpuContextSpecific->SetContextParam(createOptionEnhanced);
+            }
         }
 
         return MOS_STATUS_SUCCESS;
@@ -5751,6 +5758,7 @@ MOS_STATUS Mos_Specific_InitInterface(
 
         OsContextSpecific *pOsContextSpecific = static_cast<OsContextSpecific *>(pOsInterface->osContextPtr);
         pOsContext->intel_context             = pOsContextSpecific->GetDrmContext();
+        pOsContext->ctx_caps = I915_VCS_CLASS_CAPABILITY_INVALID;
         pOsContext->pGmmClientContext         = nullptr;
     }
     else

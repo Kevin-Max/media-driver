@@ -97,6 +97,8 @@ MOS_STATUS GpuContextSpecific::Init(OsContext *osContext)
 
     m_GPUStatusTag = 1;
 
+    m_createOptionEnhanced = nullptr;
+
     return MOS_STATUS_SUCCESS;
 }
 
@@ -129,6 +131,8 @@ void GpuContextSpecific::Clear()
     MOS_SafeFreeMemory(m_patchLocationList);
     MOS_SafeFreeMemory(m_attachedResources);
     MOS_SafeFreeMemory(m_writeModeList);
+    MOS_SafeFreeMemory(m_createOptionEnhanced);
+    m_createOptionEnhanced = nullptr;
 }
 
 MOS_STATUS GpuContextSpecific::RegisterResource(
@@ -255,6 +259,7 @@ MOS_STATUS GpuContextSpecific::GetCommandBuffer(
 
         // zero comamnd buffer
         MOS_ZeroMemory(comamndBuffer->pCmdBase, comamndBuffer->iRemaining);
+        MOS_ZeroMemory(&comamndBuffer->Attributes,sizeof(comamndBuffer->Attributes));
 
         // update command buffer relared filed in GPU context
         m_cmdBufFlushed = false;
@@ -589,7 +594,38 @@ MOS_STATUS GpuContextSpecific::SubmitCommandBuffer(
     }
     else
     {
-        if (osContext->bKMDHasVCS2)
+        if (m_createOptionEnhanced != nullptr) //VE supported
+        {
+            unsigned int nengine = MAX_ENGINE_NUM;
+            struct class_instance uengines[MAX_ENGINE_NUM];
+            __u32 engine_class = I915_ENGINE_CLASS_VIDEO;
+            __u64 caps = 0;
+
+            if (m_createOptionEnhanced->UsingSFC)
+            {
+                caps |= I915_VCS_CLASS_CAPABILITY_SFC;
+            }
+
+            if (caps != osContext->ctx_caps)
+            {
+                ret = mos_query_engines(osContext->fd,engine_class,caps,&nengine,uengines);
+                if (ret)
+                {
+                    MOS_OS_ASSERTMESSAGE("MOS failed to query engines. Check if virtual engine is supported by KMD.\n");
+                    eStatus = MOS_STATUS_UNKNOWN;
+                }
+
+                ret = mos_set_balancer(osContext->intel_context,uengines, nengine);
+                if (ret)
+                {
+                    MOS_OS_ASSERTMESSAGE("MOS failed to set balancer. Check if virtual engine is supported by KMD.\n");
+                    eStatus = MOS_STATUS_UNKNOWN;
+                }
+                osContext->ctx_caps = caps;
+            }
+            execFlag = I915_EXEC_DEFAULT;
+        }
+        else if (osContext->bKMDHasVCS2)
         {
             if (osContext->bPerCmdBufferBalancing && osInterface->pfnGetVdboxNodeId)
             {
@@ -822,5 +858,21 @@ MOS_STATUS GpuContextSpecific::AllocateGPUStatusBuf()
     }
 
     m_statusBufferResource = graphicsResource;
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS GpuContextSpecific::SetContextParam(PMOS_GPUCTX_CREATOPTIONS_ENHANCED createOptionEnhanced)
+{
+    MOS_OS_FUNCTION_ENTER;
+    if (m_createOptionEnhanced == nullptr)
+    {
+        m_createOptionEnhanced = (MOS_GPUCTX_CREATOPTIONS_ENHANCED*)MOS_AllocAndZeroMemory(sizeof(MOS_GPUCTX_CREATOPTIONS_ENHANCED));
+    }
+
+    MOS_OS_CHK_STATUS_RETURN(MOS_SecureMemcpy(m_createOptionEnhanced,
+                                              sizeof(MOS_GPUCTX_CREATOPTIONS_ENHANCED),
+                                              createOptionEnhanced,
+                                              sizeof(MOS_GPUCTX_CREATOPTIONS_ENHANCED)));
+
     return MOS_STATUS_SUCCESS;
 }

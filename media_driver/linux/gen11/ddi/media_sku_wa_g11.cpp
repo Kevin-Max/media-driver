@@ -180,7 +180,7 @@ static bool InitIclMediaSku(struct GfxDeviceInfo *devInfo,
     MEDIA_WR_SKU(skuTable, FtrVp10BitSupport, 1);
     MEDIA_WR_SKU(skuTable, FtrVp16BitSupport, 0);
 
-    MEDIA_WR_SKU(skuTable, FtrContextBasedScheduling, 0);
+    MEDIA_WR_SKU(skuTable, FtrContextBasedScheduling, 1);
 
     return true;
 }
